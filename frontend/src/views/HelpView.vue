@@ -41,7 +41,7 @@
                 <div class="platforms-grid">
                     <div class="platform-card">
                         <h3>MailChimp</h3>
-                        <p>Export your campaign report as a CSV file from the MailChimp dashboard.</p>
+                        <p>Export your campaign reports as CSV files from the MailChimp dashboard. Each CSV can contain multiple campaigns, and duplicate campaigns (based on unique ID) will be automatically deduplicated using the most recent upload.</p>
                     </div>
                     <div class="platform-card">
                         <h3>MailerLite Classic</h3>
@@ -94,6 +94,8 @@
                     <li>Campaign data is sorted chronologically by send date for accurate trend visualization</li>
                     <li>If some files fail to parse, successfully parsed campaigns will still be displayed with a warning
                         banner</li>
+                    <li>For MailChimp: Duplicate campaigns (same unique ID) across multiple files will be automatically
+                        deduplicated, keeping the version from the most recent upload</li>
                 </ul>
             </div>
 

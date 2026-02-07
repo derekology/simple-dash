@@ -38,6 +38,7 @@ def parse_mailerlite_classic(text: str):
         "platform": "mailerlite_classic",
         "subject": None,
         "email_title": None,
+        "unique_id": None,
         "sent_at": None,
         "delivered": None,
         "opens": None,

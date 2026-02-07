@@ -7,6 +7,7 @@ interface CampaignData {
     platform: string
     subject: string
     email_title: string
+    unique_id?: string
     sent_at: string
     delivered: number
     opens: number

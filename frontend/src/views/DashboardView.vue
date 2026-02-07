@@ -15,6 +15,8 @@ import {
 } from 'chart.js'
 import { Line, Bar } from 'vue-chartjs'
 import { platformMap } from '@/resources/maps'
+import SearchDropdown from '@/components/SearchDropdown.vue'
+import MultiSearchDropdown from '@/components/MultiSearchDropdown.vue'
 
 import type { TooltipItem } from 'chart.js'
 
@@ -34,6 +36,7 @@ interface CampaignData {
   platform: string
   subject: string
   email_title: string
+  unique_id?: string
   sent_at: string
   delivered: number
   opens: number
@@ -54,6 +57,7 @@ const router = useRouter()
 const campaigns = ref<CampaignData[]>([])
 const activeViewTab = ref<'individual' | 'trends'>('individual')
 const activeCampaignTab = ref(0)
+const selectedTrendCampaigns = ref<number[]>([])
 const hasFailedUploads = ref(false)
 const failedUploadCount = ref(0)
 
@@ -67,6 +71,8 @@ onMounted(() => {
       )
       if (campaigns.value.length > 1) {
         activeViewTab.value = 'trends'
+        // Select all campaigns by default for trends
+        selectedTrendCampaigns.value = campaigns.value.map((_, index) => index)
       }
     } catch (error) {
       console.error('Failed to parse campaigns:', error)
@@ -91,6 +97,150 @@ onMounted(() => {
 })
 
 const activeCampaign = computed(() => campaigns.value[activeCampaignTab.value])
+
+const campaignDropdownOptions = computed(() => {
+  return campaigns.value.map((campaign, index) => ({
+    value: index,
+    label: campaign.email_title || campaign.subject || `Campaign ${index + 1}`,
+    subtitle: campaign.subject
+  }))
+})
+
+const selectedTrendCampaignsData = computed(() => {
+  return selectedTrendCampaigns.value
+    .map(index => campaigns.value[index])
+    .filter(Boolean)
+})
+
+// Aggregated metrics for selected trend campaigns
+const aggregatedMetrics = computed(() => {
+  const data = selectedTrendCampaignsData.value
+  if (data.length === 0) {
+    return {
+      totalCampaigns: 0,
+      avgDelivered: 0,
+      avgOpens: 0,
+      avgOpenRate: 0,
+      avgClicks: 0,
+      avgClickRate: 0,
+      avgCtor: 0,
+      avgUnsubscribes: 0,
+      avgUnsubscribeRate: 0,
+      avgHardBounces: 0,
+      avgHardBounceRate: 0,
+      avgSoftBounces: 0,
+      avgSoftBounceRate: 0,
+    }
+  }
+
+  const sum = (field: keyof CampaignData) => {
+    return data.reduce((acc, c) => acc + (Number(c?.[field]) || 0), 0)
+  }
+
+  const avg = (field: keyof CampaignData) => {
+    return sum(field) / data.length
+  }
+
+  return {
+    totalCampaigns: data.length,
+    avgDelivered: avg('delivered'),
+    avgOpens: avg('opens'),
+    avgOpenRate: avg('open_rate'),
+    avgClicks: avg('clicks'),
+    avgClickRate: avg('click_rate'),
+    avgCtor: avg('ctor'),
+    avgUnsubscribes: avg('unsubscribes'),
+    avgUnsubscribeRate: avg('unsubscribe_rate'),
+    avgHardBounces: avg('hard_bounces'),
+    avgHardBounceRate: avg('hard_bounce_rate'),
+    avgSoftBounces: avg('soft_bounces'),
+    avgSoftBounceRate: avg('soft_bounce_rate'),
+  }
+})
+
+const detectOutliers = () => {
+  if (campaigns.value.length < 4) return [] // Need at least 4 campaigns for IQR
+
+  const deliveries = campaigns.value.map(c => c?.delivered || 0).sort((a, b) => a - b)
+
+  const q1Index = Math.floor(deliveries.length * 0.25)
+  const q3Index = Math.floor(deliveries.length * 0.75)
+  const q1 = deliveries[q1Index] ?? 0
+  const q3 = deliveries[q3Index] ?? 0
+  const iqr = q3 - q1
+
+  const lowerBound = q1 - 1.5 * iqr
+  const upperBound = q3 + 1.5 * iqr
+
+  const outlierIndices: number[] = []
+  campaigns.value.forEach((campaign, index) => {
+    const delivered = campaign?.delivered || 0
+    if (delivered < lowerBound || delivered > upperBound) {
+      outlierIndices.push(index)
+    }
+  })
+
+  return outlierIndices
+}
+
+const toggleOutliers = () => {
+  const outlierIndices = detectOutliers()
+
+  if (outlierIndices.length === 0) {
+    return
+  }
+
+  const anyOutlierSelected = outlierIndices.some(idx => selectedTrendCampaigns.value.includes(idx))
+
+  if (anyOutlierSelected) {
+    selectedTrendCampaigns.value = selectedTrendCampaigns.value.filter(
+      idx => !outlierIndices.includes(idx)
+    )
+  } else {
+    const newSelection = [...selectedTrendCampaigns.value]
+    outlierIndices.forEach(idx => {
+      if (!newSelection.includes(idx)) {
+        newSelection.push(idx)
+      }
+    })
+    selectedTrendCampaigns.value = newSelection
+  }
+}
+
+const outliersInfo = computed(() => {
+  if (campaigns.value.length < 4) {
+    return {
+      count: 0,
+      anySelected: false,
+      buttonText: 'Select Outliers'
+    }
+  }
+
+  const outlierIndices = detectOutliers()
+  const anySelected = outlierIndices.some(idx => selectedTrendCampaigns.value.includes(idx))
+
+  return {
+    count: outlierIndices.length,
+    anySelected,
+    buttonText: anySelected ? 'Remove Outliers' : 'Select Outliers'
+  }
+})
+
+const calculateTrendline = (dataPoints: number[]) => {
+  const n = dataPoints.length
+  if (n < 2) return dataPoints
+
+  const xValues = Array.from({ length: n }, (_, i) => i)
+  const sumX = xValues.reduce((sum, x) => sum + x, 0)
+  const sumY = dataPoints.reduce((sum, y) => sum + y, 0)
+  const sumXY = xValues.reduce((sum, x, i) => sum + x * (dataPoints[i] ?? 0), 0)
+  const sumXX = xValues.reduce((sum, x) => sum + x * x, 0)
+
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  const intercept = (sumY - slope * sumX) / n
+
+  return xValues.map(x => slope * x + intercept)
+}
 
 const formatPercent = (value: number | null) => {
   return value != null ? `${(value * 100).toFixed(2)}%` : 'N/A'
@@ -152,133 +302,295 @@ const negativeMetricsData = computed(() => {
 })
 
 const deliveriesTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.delivered || 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Deliveries',
-      data: campaigns.value.map(c => c.delivered),
-      borderColor: '#dd3333',
-      backgroundColor: 'rgba(221, 51, 51, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Deliveries',
+        data: data,
+        borderColor: '#dd3333',
+        backgroundColor: 'rgba(221, 51, 51, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const opensTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.opens || 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Opens',
-      data: campaigns.value.map(c => c.opens),
-      borderColor: '#dd3333',
-      backgroundColor: 'rgba(221, 51, 51, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Opens',
+        data: data,
+        borderColor: '#dd3333',
+        backgroundColor: 'rgba(221, 51, 51, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const clicksTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.clicks || 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Clicks',
-      data: campaigns.value.map(c => c.clicks),
-      borderColor: '#dd3333',
-      backgroundColor: 'rgba(221, 51, 51, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Clicks',
+        data: data,
+        borderColor: '#dd3333',
+        backgroundColor: 'rgba(221, 51, 51, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const openRateTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.open_rate ? c.open_rate * 100 : 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Open Rate (%)',
-      data: campaigns.value.map(c => c.open_rate ? c.open_rate * 100 : 0),
-      borderColor: '#dd3333',
-      backgroundColor: 'rgba(221, 51, 51, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Open Rate (%)',
+        data: data,
+        borderColor: '#dd3333',
+        backgroundColor: 'rgba(221, 51, 51, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const clickRateTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.click_rate ? c.click_rate * 100 : 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Click Rate (%)',
-      data: campaigns.value.map(c => c.click_rate ? c.click_rate * 100 : 0),
-      borderColor: '#dd3333',
-      backgroundColor: 'rgba(221, 51, 51, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Click Rate (%)',
+        data: data,
+        borderColor: '#dd3333',
+        backgroundColor: 'rgba(221, 51, 51, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const ctorTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.ctor ? c.ctor * 100 : 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Click-to-Open Rate (%)',
-      data: campaigns.value.map(c => c.ctor ? c.ctor * 100 : 0),
-      borderColor: '#dd3333',
-      backgroundColor: 'rgba(221, 51, 51, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Click-to-Open Rate (%)',
+        data: data,
+        borderColor: '#dd3333',
+        backgroundColor: 'rgba(221, 51, 51, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const unsubscribeRateTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.unsubscribe_rate ? c.unsubscribe_rate * 100 : 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Unsubscribe Rate (%)',
-      data: campaigns.value.map(c => c.unsubscribe_rate ? c.unsubscribe_rate * 100 : 0),
-      borderColor: '#222222',
-      backgroundColor: 'rgba(34, 34, 34, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Unsubscribe Rate (%)',
+        data: data,
+        borderColor: '#666666',
+        backgroundColor: 'rgba(34, 34, 34, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const hardBounceRateTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.hard_bounce_rate ? c.hard_bounce_rate * 100 : 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Hard Bounce Rate (%)',
-      data: campaigns.value.map(c => c.hard_bounce_rate ? c.hard_bounce_rate * 100 : 0),
-      borderColor: '#666666',
-      backgroundColor: 'rgba(102, 102, 102, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Hard Bounce Rate (%)',
+        data: data,
+        borderColor: '#666666',
+        backgroundColor: 'rgba(102, 102, 102, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const softBounceRateTrend = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
+  const data = selectedTrendCampaignsData.value.map(c => c?.soft_bounce_rate ? c.soft_bounce_rate * 100 : 0)
+  const trendline = calculateTrendline(data)
+
   return {
-    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
-    datasets: [{
-      label: 'Soft Bounce Rate (%)',
-      data: campaigns.value.map(c => c.soft_bounce_rate ? c.soft_bounce_rate * 100 : 0),
-      borderColor: '#999999',
-      backgroundColor: 'rgba(153, 153, 153, 0.1)',
-      tension: 0.4
-    }]
+    labels: selectedTrendCampaignsData.value.map(c => c?.email_title || c?.subject || 'Untitled'),
+    datasets: [
+      {
+        label: 'Soft Bounce Rate (%)',
+        data: data,
+        borderColor: '#666666',
+        backgroundColor: 'rgba(153, 153, 153, 0.1)',
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Trend',
+        data: trendline,
+        borderColor: '#222222',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0
+      }
+    ]
   }
 })
 
 const heatmapData = computed(() => {
-  if (campaigns.value.length <= 1) return null
+  if (selectedTrendCampaignsData.value.length === 0) return null
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const hours = Array.from({ length: 24 }, (_, i) => i)
@@ -286,7 +598,8 @@ const heatmapData = computed(() => {
   const grid: { count: number; totalOpenRate: number; campaigns: string[] }[][] =
     daysOfWeek.map(() => hours.map(() => ({ count: 0, totalOpenRate: 0, campaigns: [] })))
 
-  campaigns.value.forEach(campaign => {
+  selectedTrendCampaignsData.value.forEach(campaign => {
+    if (!campaign) return
     const date = new Date(campaign.sent_at)
     const day = date.getDay()
     const hour = date.getHours()
@@ -383,18 +696,19 @@ const trendChartOptions = {
 
 <template>
   <div class="dashboard-view">
-    <div v-if="hasFailedUploads" class="failed-upload-banner">
-      <div class="failed-upload-banner-content">
-        <span class="failed-upload-icon">⚠️</span>
-        <span class="failed-upload-text">
-          {{ failedUploadCount }} {{ failedUploadCount === 1 ? 'file' : 'files' }} failed to upload in your last batch.
-          Only successfully parsed campaigns are shown.
-        </span>
-      </div>
-    </div>
-
     <main class="main-content">
       <div class="content-wrapper">
+        <div v-if="hasFailedUploads" class="warning-banner">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <p>{{ failedUploadCount }} {{ failedUploadCount === 1 ? 'file' : 'files' }} failed to upload in your last
+            batch. Only successfully parsed campaigns are shown below.</p>
+        </div>
+
         <div class="view-tabs">
           <button :class="['view-tab', { active: activeViewTab === 'individual' }]"
             @click="activeViewTab = 'individual'">
@@ -408,13 +722,10 @@ const trendChartOptions = {
 
         <!-- Individual Campaign View -->
         <div v-if="activeViewTab === 'individual'">
-          <!-- Campaign Tabs -->
-          <div v-if="campaigns.length > 1" class="tabs">
-            <button v-for="(campaign, index) in campaigns" :key="index"
-              :class="['tab', { active: activeCampaignTab === index }]" @click="activeCampaignTab = index"
-              :title="campaign.subject">
-              {{ campaign.email_title || campaign.subject || `Campaign ${index + 1}` }}
-            </button>
+          <!-- Campaign Dropdown -->
+          <div v-if="campaigns.length > 0" class="campaign-selector">
+            <SearchDropdown :options="campaignDropdownOptions" v-model="activeCampaignTab"
+              placeholder="Select a campaign..." />
           </div>
 
           <div v-if="activeCampaign" class="campaign-info">
@@ -530,69 +841,144 @@ const trendChartOptions = {
           </div>
         </div>
 
-        <!-- Trends View -->
         <div v-if="activeViewTab === 'trends' && campaigns.length > 1" class="trends-section">
-          <h2 class="section-title">Trends Over Time</h2>
+          <div class="campaign-selector">
+            <MultiSearchDropdown :options="campaignDropdownOptions" v-model="selectedTrendCampaigns"
+              :show-outliers="true" :outliers-count="outliersInfo.count" :outliers-button-text="outliersInfo.buttonText"
+              @toggle-outliers="toggleOutliers" />
+          </div>
 
           <div class="charts-grid">
             <div class="chart-card wide">
-              <h3>Deliveries</h3>
+              <div class="chart-header">
+                <h3>Deliveries</h3>
+                <div class="chart-metrics">
+                  <span class="metric-label">Average:</span>
+                  <span class="metric-value">{{ formatNumber(aggregatedMetrics.avgDelivered) }}</span>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="deliveriesTrend" :data="deliveriesTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card wide">
-              <h3>Opens</h3>
+              <div class="chart-header">
+                <h3>Opens</h3>
+                <div class="chart-metrics">
+                  <span class="metric-label">Average:</span>
+                  <span class="metric-value">{{ formatNumber(aggregatedMetrics.avgOpens) }}</span>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="opensTrend" :data="opensTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card wide">
-              <h3>Clicks</h3>
+              <div class="chart-header">
+                <h3>Clicks</h3>
+                <div class="chart-metrics">
+                  <span class="metric-label">Average:</span>
+                  <span class="metric-value">{{ formatNumber(aggregatedMetrics.avgClicks) }}</span>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="clicksTrend" :data="clicksTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card">
-              <h3>Open Rate</h3>
+              <div class="chart-header">
+                <h3>Open Rate</h3>
+                <div class="chart-metrics">
+                  <span class="metric-label">Avg Rate:</span>
+                  <span class="metric-value">{{ formatPercent(aggregatedMetrics.avgOpenRate) }}</span>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="openRateTrend" :data="openRateTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card">
-              <h3>Click Rate</h3>
+              <div class="chart-header">
+                <h3>Click Rate</h3>
+                <div class="chart-metrics">
+                  <span class="metric-label">Avg Rate:</span>
+                  <span class="metric-value">{{ formatPercent(aggregatedMetrics.avgClickRate) }}</span>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="clickRateTrend" :data="clickRateTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card">
-              <h3>CTOR</h3>
+              <div class="chart-header">
+                <h3>CTOR</h3>
+                <div class="chart-metrics">
+                  <span class="metric-label">Avg Rate:</span>
+                  <span class="metric-value">{{ formatPercent(aggregatedMetrics.avgCtor) }}</span>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="ctorTrend" :data="ctorTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card">
-              <h3>Unsubscribe Rate</h3>
+              <div class="chart-header">
+                <h3>Unsubscribe %</h3>
+                <div class="chart-metrics-group">
+                  <div class="chart-metrics">
+                    <span class="metric-label">Avg Rate:</span>
+                    <span class="metric-value">{{ formatPercent(aggregatedMetrics.avgUnsubscribeRate) }}</span>
+                  </div>
+                  <div class="chart-metrics">
+                    <span class="metric-label">Avg Count:</span>
+                    <span class="metric-value">{{ formatNumber(aggregatedMetrics.avgUnsubscribes) }}</span>
+                  </div>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="unsubscribeRateTrend" :data="unsubscribeRateTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card">
-              <h3>Hard Bounce Rate</h3>
+              <div class="chart-header">
+                <h3>Hard Bounce %</h3>
+                <div class="chart-metrics-group">
+                  <div class="chart-metrics">
+                    <span class="metric-label">Avg Rate:</span>
+                    <span class="metric-value">{{ formatPercent(aggregatedMetrics.avgHardBounceRate) }}</span>
+                  </div>
+                  <div class="chart-metrics">
+                    <span class="metric-label">Avg Count:</span>
+                    <span class="metric-value">{{ formatNumber(aggregatedMetrics.avgHardBounces) }}</span>
+                  </div>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="hardBounceRateTrend" :data="hardBounceRateTrend" :options="trendChartOptions" />
               </div>
             </div>
 
             <div class="chart-card">
-              <h3>Soft Bounce Rate</h3>
+              <div class="chart-header">
+                <h3>Soft Bounce %</h3>
+                <div class="chart-metrics-group">
+                  <div class="chart-metrics">
+                    <span class="metric-label">Avg Rate:</span>
+                    <span class="metric-value">{{ formatPercent(aggregatedMetrics.avgSoftBounceRate) }}</span>
+                  </div>
+                  <div class="chart-metrics">
+                    <span class="metric-label">Avg Count:</span>
+                    <span class="metric-value">{{ formatNumber(aggregatedMetrics.avgSoftBounces) }}</span>
+                  </div>
+                </div>
+              </div>
               <div class="chart-container">
                 <Line v-if="softBounceRateTrend" :data="softBounceRateTrend" :options="trendChartOptions" />
               </div>
@@ -718,35 +1104,9 @@ const trendChartOptions = {
   border-bottom-color: #dd3333;
 }
 
-.tabs {
-  display: flex;
-  gap: 8px;
+.campaign-selector {
   margin-bottom: 24px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  justify-content: start;
-}
-
-.tab {
-  padding: 12px 24px;
-  background-color: #ffffff;
-  border: 2px solid #e0e0e0;
-  border-radius: 6px;
-  font-weight: 500;
-  color: #222222;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.tab:hover {
-  border-color: #dd3333;
-}
-
-.tab.active {
-  background-color: #dd3333;
-  border-color: #dd3333;
-  color: #ffffff;
+  max-width: 600px;
 }
 
 .campaign-info {
@@ -868,13 +1228,6 @@ const trendChartOptions = {
   grid-column: 1 / -1;
 }
 
-.chart-card h3 {
-  margin: 0 0 16px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #222222;
-}
-
 .chart-container {
   height: 300px;
   position: relative;
@@ -882,6 +1235,81 @@ const trendChartOptions = {
 
 .trends-section {
   margin-top: 48px;
+}
+
+.aggregated-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+  justify-content: center;
+}
+
+.summary-card {
+  background-color: #ffffff;
+  padding: 20px 32px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  border-top: 4px solid #dd3333;
+}
+
+.summary-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.summary-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: #dd3333;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 4px;
+}
+
+.chart-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #222222;
+}
+
+.chart-metrics-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.chart-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: end;
+  justify-content: flex-end;
+}
+
+.metric-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666666;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.metric-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #000000;
 }
 
 .heatmap-section {
