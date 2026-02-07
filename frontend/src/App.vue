@@ -1,15 +1,29 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 
+const router = useRouter()
+const route = useRoute()
 const hasSavedCampaigns = ref(false)
+const previousRoute = ref<string>('/')
 
 onMounted(() => {
   const campaignsJson = sessionStorage.getItem('campaigns')
   hasSavedCampaigns.value = !!campaignsJson
 })
 
+watch(() => route.path, (newPath, oldPath) => {
+  if (newPath === '/help' && oldPath) {
+    previousRoute.value = oldPath
+  }
+})
+
 function goToWebsite() {
   window.open('https://derekw.co/?utm_medium=referral&utm_source=simple-dash', '_blank');
+}
+
+function goBack() {
+  router.push(previousRoute.value)
 }
 </script>
 
@@ -18,14 +32,17 @@ function goToWebsite() {
     <h1 class="logo"><span class="logo-highlight">::</span>simple dash<span class="byline" @click="goToWebsite">by
         derekw</span></h1>
     <div class="nav">
-      <button v-if="$route.path !== '/'" class="nav-button" title="Upload" @click="$router.push('/')">
+      <button v-if="$route.path === '/help'" class="nav-button" title="Back" @click="goBack">
+        {{ previousRoute === '/dashboard' ? 'back to dashboard' : 'back to upload' }}
+      </button>
+      <button v-else-if="$route.path === '/dashboard'" class="nav-button" title="Upload" @click="$router.push('/')">
         back to upload
       </button>
-      <button v-if="$route.path === '/' && hasSavedCampaigns" class="nav-button" title="Upload"
+      <button v-else-if="$route.path === '/' && hasSavedCampaigns" class="nav-button" title="Dashboard"
         @click="$router.push('/dashboard')">
         go to dashboard
       </button>
-      <button class="nav-button delete-button" title="Help / About">
+      <button v-if="$route.path !== '/help'" class="nav-button" title="Help / About" @click="$router.push('/help')">
         help / about
       </button>
     </div>
