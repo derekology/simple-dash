@@ -33,6 +33,7 @@ ChartJS.register(
 interface CampaignData {
   platform: string
   subject: string
+  email_title: string
   sent_at: string
   delivered: number
   opens: number
@@ -153,7 +154,7 @@ const negativeMetricsData = computed(() => {
 const deliveriesTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Deliveries',
       data: campaigns.value.map(c => c.delivered),
@@ -167,7 +168,7 @@ const deliveriesTrend = computed(() => {
 const opensTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Opens',
       data: campaigns.value.map(c => c.opens),
@@ -181,7 +182,7 @@ const opensTrend = computed(() => {
 const clicksTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Clicks',
       data: campaigns.value.map(c => c.clicks),
@@ -195,7 +196,7 @@ const clicksTrend = computed(() => {
 const openRateTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Open Rate (%)',
       data: campaigns.value.map(c => c.open_rate ? c.open_rate * 100 : 0),
@@ -209,7 +210,7 @@ const openRateTrend = computed(() => {
 const clickRateTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Click Rate (%)',
       data: campaigns.value.map(c => c.click_rate ? c.click_rate * 100 : 0),
@@ -223,7 +224,7 @@ const clickRateTrend = computed(() => {
 const ctorTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Click-to-Open Rate (%)',
       data: campaigns.value.map(c => c.ctor ? c.ctor * 100 : 0),
@@ -237,7 +238,7 @@ const ctorTrend = computed(() => {
 const unsubscribeRateTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Unsubscribe Rate (%)',
       data: campaigns.value.map(c => c.unsubscribe_rate ? c.unsubscribe_rate * 100 : 0),
@@ -251,7 +252,7 @@ const unsubscribeRateTrend = computed(() => {
 const hardBounceRateTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Hard Bounce Rate (%)',
       data: campaigns.value.map(c => c.hard_bounce_rate ? c.hard_bounce_rate * 100 : 0),
@@ -265,7 +266,7 @@ const hardBounceRateTrend = computed(() => {
 const softBounceRateTrend = computed(() => {
   if (campaigns.value.length <= 1) return null
   return {
-    labels: campaigns.value.map(c => c.subject || 'Untitled'),
+    labels: campaigns.value.map(c => c.email_title || c.subject || 'Untitled'),
     datasets: [{
       label: 'Soft Bounce Rate (%)',
       data: campaigns.value.map(c => c.soft_bounce_rate ? c.soft_bounce_rate * 100 : 0),
@@ -294,7 +295,7 @@ const heatmapData = computed(() => {
 
     grid[day][hour].count++
     grid[day][hour].totalOpenRate += (campaign.open_rate || 0) * 100
-    grid[day][hour].campaigns.push(campaign.subject || 'Untitled')
+    grid[day][hour].campaigns.push(campaign.email_title || campaign.subject || 'Untitled')
   })
 
   const cells = grid.flatMap((dayRow, dayIndex) =>
@@ -410,8 +411,9 @@ const trendChartOptions = {
           <!-- Campaign Tabs -->
           <div v-if="campaigns.length > 1" class="tabs">
             <button v-for="(campaign, index) in campaigns" :key="index"
-              :class="['tab', { active: activeCampaignTab === index }]" @click="activeCampaignTab = index">
-              {{ campaign.subject || `Campaign ${index + 1}` }}
+              :class="['tab', { active: activeCampaignTab === index }]" @click="activeCampaignTab = index"
+              :title="campaign.subject">
+              {{ campaign.email_title || campaign.subject || `Campaign ${index + 1}` }}
             </button>
           </div>
 

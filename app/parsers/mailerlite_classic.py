@@ -20,6 +20,15 @@ def extract_number_and_percent(value: str):
     return num, pct
 
 
+def sanitize_title(subject: str) -> str:
+    """Remove special characters from subject line to create a clean title."""
+    if not subject:
+        return "Untitled"
+    cleaned = re.sub(r'[^\w\s\-.,!?]', '', subject)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned if cleaned else "Untitled"
+
+
 def parse_mailerlite_classic(text: str):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
 
@@ -28,6 +37,7 @@ def parse_mailerlite_classic(text: str):
     data = {
         "platform": "mailerlite_classic",
         "subject": None,
+        "email_title": None,
         "sent_at": None,
         "delivered": None,
         "opens": None,
@@ -96,6 +106,8 @@ def parse_mailerlite_classic(text: str):
         data["ctor"] = data["clicks"] / data["opens"]
     else:
         data["ctor"] = None
+
+    data["email_title"] = sanitize_title(data["subject"])
 
     return {
         "campaign": data

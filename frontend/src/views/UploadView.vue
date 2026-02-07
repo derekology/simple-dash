@@ -6,6 +6,7 @@ import UploadSection from '@/components/UploadSection.vue'
 interface CampaignData {
     platform: string
     subject: string
+    email_title: string
     sent_at: string
     delivered: number
     opens: number
