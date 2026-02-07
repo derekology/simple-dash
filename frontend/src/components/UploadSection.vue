@@ -8,7 +8,7 @@ const emit = defineEmits<{
 }>()
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-const MAX_FILES = 10
+const MAX_FILES = 12
 
 const selectedFiles = ref<File[]>([])
 const isDragging = ref(false)
@@ -73,6 +73,11 @@ const removeFile = (index: number) => {
     emit('filesSelected', selectedFiles.value)
 }
 
+const clearFiles = () => {
+    selectedFiles.value = []
+    emit('filesSelected', [])
+}
+
 const triggerUpload = () => {
     if (selectedFiles.value.length > 0) {
         emit('upload')
@@ -86,8 +91,8 @@ const totalSize = computed(() => {
 
 <template>
     <div class="upload-section">
-        <div class="drop-zone" :class="{ 'dragging': isDragging }" @drop.prevent="handleDrop"
-            @dragover.prevent="handleDragOver" @dragleave="handleDragLeave">
+        <div v-if="selectedFiles.length === 0" class="drop-zone" :class="{ 'dragging': isDragging }"
+            @drop.prevent="handleDrop" @dragover.prevent="handleDragOver" @dragleave="handleDragLeave">
             <div class="drop-zone-content">
                 <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-width="2">
@@ -115,7 +120,8 @@ const totalSize = computed(() => {
                     <button @click="removeFile(index)" class="remove-btn">×</button>
                 </li>
             </ul>
-            <button @click="triggerUpload" class="upload-btn">Upload and Parse</button>
+            <button @click="triggerUpload" class="upload-btn">Upload</button>
+            <button @click="clearFiles" class="back-link">Clear all files</button>
         </div>
     </div>
 </template>
@@ -276,6 +282,7 @@ const totalSize = computed(() => {
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.2s ease;
+    margin-bottom: 12px;
 }
 
 .upload-btn:hover {
@@ -285,5 +292,22 @@ const totalSize = computed(() => {
 .upload-btn:disabled {
     background-color: #cccccc;
     cursor: not-allowed;
+}
+
+.back-link {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    color: #666666;
+    font-size: 14px;
+    text-align: center;
+    cursor: pointer;
+    padding: 8px;
+    transition: color 0.2s ease;
+}
+
+.back-link:hover {
+    color: #dd3333;
 }
 </style>

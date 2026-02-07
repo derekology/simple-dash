@@ -1,7 +1,15 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue';
+
+const hasSavedCampaigns = ref(false)
+
+onMounted(() => {
+  const campaignsJson = sessionStorage.getItem('campaigns')
+  hasSavedCampaigns.value = !!campaignsJson
+})
 
 function goToWebsite() {
-  window.open('https://derekw.co/?utm_medium=referral&utm_source=simple-pixel', '_blank');
+  window.open('https://derekw.co/?utm_medium=referral&utm_source=simple-dash', '_blank');
 }
 </script>
 
@@ -10,19 +18,22 @@ function goToWebsite() {
     <h1 class="logo"><span class="logo-highlight">::</span>simple dash<span class="byline" @click="goToWebsite">by
         derekw</span></h1>
     <div class="nav">
-      <button class="nav-button" title="Upload">
-        upload
+      <button v-if="$route.path !== '/'" class="nav-button" title="Upload" @click="$router.push('/')">
+        back to upload
       </button>
-      <button class="nav-button" title="Dashboard">
-        dashboard
+      <button v-if="$route.path === '/' && hasSavedCampaigns" class="nav-button" title="Upload"
+        @click="$router.push('/dashboard')">
+        go to dashboard
       </button>
-      <button class="nav-button delete-button" title="Help">
-        help
+      <button class="nav-button delete-button" title="Help / About">
+        help / about
       </button>
     </div>
   </header>
 
-  <RouterView />
+  <div class="content">
+    <RouterView />
+  </div>
 </template>
 
 <style>
@@ -33,7 +44,6 @@ function goToWebsite() {
   background: var(--color-bg-dark);
   color: var(--color-text-white);
   box-shadow: var(--shadow-md);
-  ;
   border-top: 5px solid var(--color-primary);
   height: var(--top-bar-height);
 }
@@ -87,5 +97,10 @@ function goToWebsite() {
 
 .nav-button:hover {
   background: var(--color-bg-hover);
+}
+
+.content {
+  height: calc(100vh - var(--top-bar-height));
+  overflow-y: auto;
 }
 </style>

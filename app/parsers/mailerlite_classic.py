@@ -20,13 +20,13 @@ def extract_number_and_percent(value: str):
     return num, pct
 
 
-def parse_mailerlite(text: str):
+def parse_mailerlite_classic(text: str):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
 
     section = None
 
     data = {
-        "platform": "mailerlite",
+        "platform": "mailerlite_classic",
         "subject": None,
         "sent_at": None,
         "delivered": None,

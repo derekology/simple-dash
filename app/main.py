@@ -8,7 +8,7 @@ from typing import List
 
 DEV = True
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-MAX_FILES = 10
+MAX_FILES = 12
 
 app = FastAPI()
 
@@ -67,10 +67,19 @@ async def parse_report(files: List[UploadFile] = File(...)):
         "errors": errors
     }
 
-# Serve static files from frontend dist
 if os.path.exists("frontend/dist"):
     app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
     
-    @app.get("/")
-    async def serve_spa():
+    @app.get("/favicon.ico")
+    async def serve_favicon():
+        favicon_path = "frontend/public/favicon.ico"
+        if os.path.exists(favicon_path):
+            return FileResponse(favicon_path)
+        raise HTTPException(status_code=404, detail="Favicon not found")
+    
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("parse"):
+            raise HTTPException(status_code=404, detail="Not found")
+        
         return FileResponse("frontend/dist/index.html")

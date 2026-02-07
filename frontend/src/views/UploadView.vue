@@ -1,10 +1,30 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import UploadSection from '@/components/UploadSection.vue'
+
+interface CampaignData {
+    platform: string
+    subject: string
+    sent_at: string
+    delivered: number
+    opens: number
+    open_rate: number
+    clicks: number
+    click_rate: number
+    ctor: number
+    unsubscribes: number
+    unsubscribe_rate: number
+    spam_complaints: number
+    hard_bounces: number
+    hard_bounce_rate: number
+    soft_bounces: number
+    soft_bounce_rate: number
+}
 
 interface UploadResult {
     filename: string
-    data?: { campaign?: unknown }
+    data?: { campaign?: CampaignData }
 }
 
 interface UploadResponse {
@@ -12,6 +32,7 @@ interface UploadResponse {
     errors?: Array<{ filename: string; error: string }>
 }
 
+const router = useRouter()
 const selectedFiles = ref<File[]>([])
 const isUploading = ref(false)
 const uploadResults = ref<UploadResponse | null>(null)
@@ -40,6 +61,8 @@ const handleUpload = async () => {
     validationError.value = null
 
     try {
+        sessionStorage.removeItem('campaigns')
+
         const formData = new FormData()
         selectedFiles.value.forEach(file => {
             formData.append('files', file)
@@ -57,159 +80,131 @@ const handleUpload = async () => {
 
         const data = await response.json()
         uploadResults.value = data
+
+        if (data.results && data.results.length > 0) {
+            const campaigns = data.results
+                .filter((r: UploadResult) => r.data?.campaign)
+                .map((r: UploadResult) => r.data!.campaign!)
+
+            if (campaigns.length > 0) {
+                sessionStorage.setItem('campaigns', JSON.stringify(campaigns))
+                router.push({ name: 'dashboard' })
+            }
+        }
     } catch (error) {
         uploadError.value = error instanceof Error ? error.message : 'Upload failed'
     } finally {
         isUploading.value = false
     }
 }
+
+const viewDashboard = () => {
+    if (uploadResults.value?.results && uploadResults.value.results.length > 0) {
+        const campaigns = uploadResults.value.results
+            .filter((r: UploadResult) => r.data?.campaign)
+            .map((r: UploadResult) => r.data!.campaign!)
+
+        if (campaigns.length > 0) {
+            sessionStorage.setItem('campaigns', JSON.stringify(campaigns))
+            router.push({ name: 'dashboard' })
+        }
+    }
+}
 </script>
 
 <template>
-    <div class="upload-view">
-        <main class="main-content">
-            <div class="content-wrapper">
-                <h1 class="page-title">Upload Your Email Reports</h1>
-                <p class="page-description">
-                    Upload one or more email reports to parse and analyze your data
-                </p>
+    <main class="main-content">
+        <div class="content-wrapper">
+            <h1 class="page-title">Upload Email Reports</h1>
+            <p class="page-description">
+                Upload one or more MailChimp or MailerLite Classic reports (more platforms coming soon!)
+            </p>
 
-                <UploadSection @files-selected="handleFilesSelected" @upload="handleUpload"
-                    @validation-error="handleValidationError" />
+            <UploadSection @files-selected="handleFilesSelected" @upload="handleUpload"
+                @validation-error="handleValidationError" />
 
-                <div v-if="validationError" class="status-message warning">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <path
-                            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" y1="9" x2="12" y2="13" />
-                        <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                    <p>{{ validationError }}</p>
+            <div v-if="validationError" class="status-message warning">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <path
+                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <p>{{ validationError }}</p>
+            </div>
+
+            <div v-if="isUploading" class="status-message uploading">
+                <div class="spinner"></div>
+                <p>Uploading and parsing files...</p>
+            </div>
+
+            <div v-if="uploadError" class="status-message error">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="15" y1="9" x2="9" y2="15" />
+                    <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+                <p>{{ uploadError }}</p>
+            </div>
+
+            <div v-if="uploadResults" class="results">
+                <h2 class="results-title">Upload Results</h2>
+
+                <div v-if="uploadResults.results && uploadResults.results.length > 0" class="results-section success">
+                    <h3>Successfully Parsed ({{ uploadResults.results.length }})</h3>
+                    <ul class="results-list">
+                        <li v-for="(result, index) in uploadResults.results" :key="index" class="result-item">
+                            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <div class="result-content">
+                                <span class="result-filename">{{ result.filename }}</span>
+                                <span class="result-details">
+                                    {{ result.data?.campaign ? 1 : 0 }} campaign found
+                                </span>
+                            </div>
+                        </li>
+                    </ul>
+                    <button @click="viewDashboard" class="dashboard-btn">View Dashboard</button>
                 </div>
 
-                <div v-if="isUploading" class="status-message uploading">
-                    <div class="spinner"></div>
-                    <p>Uploading and parsing files...</p>
-                </div>
-
-                <div v-if="uploadError" class="status-message error">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="15" y1="9" x2="9" y2="15" />
-                        <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                    <p>{{ uploadError }}</p>
-                </div>
-
-                <div v-if="uploadResults" class="results">
-                    <h2 class="results-title">Upload Results</h2>
-
-                    <div v-if="uploadResults.results && uploadResults.results.length > 0"
-                        class="results-section success">
-                        <h3>Successfully Parsed ({{ uploadResults.results.length }})</h3>
-                        <ul class="results-list">
-                            <li v-for="(result, index) in uploadResults.results" :key="index" class="result-item">
-                                <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                                <div class="result-content">
-                                    <span class="result-filename">{{ result.filename }}</span>
-                                    <span class="result-details">
-                                        {{ result.data?.campaign ? 1 : 0 }} campaign found
-                                    </span>
-                                </div>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div v-if="uploadResults.errors && uploadResults.errors.length > 0"
-                        class="results-section error-section">
-                        <h3>Errors ({{ uploadResults.errors.length }})</h3>
-                        <ul class="results-list">
-                            <li v-for="(error, index) in uploadResults.errors" :key="index"
-                                class="result-item error-item">
-                                <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <line x1="15" y1="9" x2="9" y2="15" />
-                                    <line x1="9" y1="9" x2="15" y2="15" />
-                                </svg>
-                                <div class="result-content">
-                                    <span class="result-filename">{{ error.filename }}</span>
-                                    <span class="result-error">{{ error.error }}</span>
-                                </div>
-                            </li>
-                        </ul>
-                    </div>
+                <div v-if="uploadResults.errors && uploadResults.errors.length > 0"
+                    class="results-section error-section">
+                    <h3>Errors ({{ uploadResults.errors.length }})</h3>
+                    <ul class="results-list">
+                        <li v-for="(error, index) in uploadResults.errors" :key="index" class="result-item error-item">
+                            <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="15" y1="9" x2="9" y2="15" />
+                                <line x1="9" y1="9" x2="15" y2="15" />
+                            </svg>
+                            <div class="result-content">
+                                <span class="result-filename">{{ error.filename }}</span>
+                                <span class="result-error">{{ error.error }}</span>
+                            </div>
+                        </li>
+                    </ul>
                 </div>
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
 </template>
 
 <style scoped>
-.upload-view {
-    min-height: 100vh;
-    background-color: #fafafa;
-}
-
-.header {
-    background-color: #222222;
-    border-top: 5px solid #dd3333;
-    padding: 0 32px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.header-content {
-    max-width: 1400px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 70px;
-}
-
-.logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: #ffffff;
-    font-size: 20px;
-    font-weight: 700;
-}
-
-.logo svg {
-    width: 28px;
-    height: 28px;
-    color: #dd3333;
-}
-
-.menu {
-    display: flex;
-    gap: 32px;
-}
-
-.menu-item {
-    color: #ffffff;
-    text-decoration: none;
-    font-weight: 500;
-    transition: color 0.2s ease;
-    position: relative;
-}
-
-.menu-item:hover {
-    color: #dd3333;
-}
-
 .main-content {
-    padding: 48px 32px;
+    min-height: calc(100vh - var(--top-bar-height));
+    justify-content: center;
+    align-items: center;
+    background-color: #fafafa;
 }
 
 .content-wrapper {
     max-width: 1200px;
+    padding: 32px;
     margin: 0 auto;
 }
 
@@ -322,7 +317,24 @@ const handleUpload = async () => {
 .results-list {
     list-style: none;
     padding: 0;
-    margin: 0;
+    margin: 0 0 24px 0;
+}
+
+.dashboard-btn {
+    width: 100%;
+    padding: 14px;
+    background-color: #dd3333;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.dashboard-btn:hover {
+    background-color: #cc2222;
 }
 
 .result-item {
