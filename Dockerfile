@@ -31,11 +31,10 @@ COPY --from=backend-builder --chown=python:python /root/.local /home/python/.loc
 COPY --from=backend-builder --chown=python:python /app/app ./app
 COPY --from=frontend-builder --chown=python:python /app/frontend/dist ./frontend/dist
 
-ENV PATH=/home/python/.local/bin:$PATH
-
 USER python
 
-ENV PYTHONUNBUFFERED=1 \
+ENV PATH=/home/python/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
     PORT=8000 \
     MAX_FILE_SIZE=10485760 \
     MAX_FILES=12 \
@@ -46,4 +45,4 @@ EXPOSE $PORT
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8000}/health').read()" || exit 1
 
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
