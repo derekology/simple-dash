@@ -3,7 +3,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from app.parsers.detector import detect_and_parse
+from app.utils.detector import detect_and_parse
 from typing import List, Dict
 from datetime import datetime
 

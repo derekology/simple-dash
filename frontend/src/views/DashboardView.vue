@@ -183,6 +183,36 @@ const detectOutliers = () => {
   return outlierIndices
 }
 
+const detectLowVolume = () => {
+  if (campaigns.value.length < 2) return []
+
+  const delivered = campaigns.value
+    .map(c => c?.delivered || 0)
+    .filter(d => d > 0)
+
+  if (delivered.length < 2) return []
+
+  // Calculate median
+  const sorted = [...delivered].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 0
+    ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+    : (sorted[mid] ?? 0)
+
+  // Threshold: less than 50% of median
+  const threshold = median * 0.5
+
+  const lowVolumeIndices: number[] = []
+  campaigns.value.forEach((campaign, index) => {
+    const delivered = campaign?.delivered || 0
+    if (delivered > 0 && delivered < threshold) {
+      lowVolumeIndices.push(index)
+    }
+  })
+
+  return lowVolumeIndices
+}
+
 const toggleOutliers = () => {
   const outlierIndices = detectOutliers()
 
@@ -207,6 +237,30 @@ const toggleOutliers = () => {
   }
 }
 
+const toggleLowVolume = () => {
+  const lowVolumeIndices = detectLowVolume()
+
+  if (lowVolumeIndices.length === 0) {
+    return
+  }
+
+  const anyLowVolumeSelected = lowVolumeIndices.some(idx => selectedTrendCampaigns.value.includes(idx))
+
+  if (anyLowVolumeSelected) {
+    selectedTrendCampaigns.value = selectedTrendCampaigns.value.filter(
+      idx => !lowVolumeIndices.includes(idx)
+    )
+  } else {
+    const newSelection = [...selectedTrendCampaigns.value]
+    lowVolumeIndices.forEach(idx => {
+      if (!newSelection.includes(idx)) {
+        newSelection.push(idx)
+      }
+    })
+    selectedTrendCampaigns.value = newSelection
+  }
+}
+
 const outliersInfo = computed(() => {
   if (campaigns.value.length < 4) {
     return {
@@ -223,6 +277,25 @@ const outliersInfo = computed(() => {
     count: outlierIndices.length,
     anySelected,
     buttonText: anySelected ? 'Remove Outliers' : 'Select Outliers'
+  }
+})
+
+const lowVolumeInfo = computed(() => {
+  if (campaigns.value.length < 2) {
+    return {
+      count: 0,
+      anySelected: false,
+      buttonText: 'Select Low Volume'
+    }
+  }
+
+  const lowVolumeIndices = detectLowVolume()
+  const anySelected = lowVolumeIndices.some(idx => selectedTrendCampaigns.value.includes(idx))
+
+  return {
+    count: lowVolumeIndices.length,
+    anySelected,
+    buttonText: anySelected ? 'Remove Low Volume' : 'Select Low Volume'
   }
 })
 
@@ -595,8 +668,8 @@ const heatmapData = computed(() => {
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const hours = Array.from({ length: 24 }, (_, i) => i)
 
-  const grid: { count: number; totalOpenRate: number; campaigns: string[] }[][] =
-    daysOfWeek.map(() => hours.map(() => ({ count: 0, totalOpenRate: 0, campaigns: [] })))
+  const grid: { count: number; totalOpenRate: number; totalDelivered: number; campaigns: string[] }[][] =
+    daysOfWeek.map(() => hours.map(() => ({ count: 0, totalOpenRate: 0, totalDelivered: 0, campaigns: [] })))
 
   selectedTrendCampaignsData.value.forEach(campaign => {
     if (!campaign) return
@@ -608,6 +681,7 @@ const heatmapData = computed(() => {
 
     grid[day][hour].count++
     grid[day][hour].totalOpenRate += (campaign.open_rate || 0) * 100
+    grid[day][hour].totalDelivered += campaign.delivered || 0
     grid[day][hour].campaigns.push(campaign.email_title || campaign.subject || 'Untitled')
   })
 
@@ -616,6 +690,7 @@ const heatmapData = computed(() => {
       day: daysOfWeek[dayIndex],
       hour: hourIndex,
       avgOpenRate: cell.count > 0 ? cell.totalOpenRate / cell.count : 0,
+      totalDelivered: cell.totalDelivered,
       count: cell.count,
       campaigns: cell.campaigns
     }))
@@ -654,7 +729,7 @@ const getHeatmapCellTooltip = (dayIndex: number, hour: number) => {
   if (!cell || cell.count === 0) return 'No campaigns sent at this time'
 
   const campaigns = cell.campaigns.join(', ')
-  return `${heatmapData.value!.daysOfWeek[dayIndex]} ${hour}:00\nAvg Open Rate: ${cell.avgOpenRate.toFixed(1)}%\nCampaigns (${cell.count}): ${campaigns}`
+  return `${heatmapData.value!.daysOfWeek[dayIndex]} ${hour}:00\nAvg Open Rate: ${cell.avgOpenRate.toFixed(1)}%\nTotal Delivered: ${cell.totalDelivered.toLocaleString()}\nCampaigns (${cell.count}): ${campaigns}`
 }
 
 const chartOptions = {
@@ -842,7 +917,8 @@ const trendChartOptions = {
           <div class="campaign-selector">
             <MultiSearchDropdown :options="campaignDropdownOptions" v-model="selectedTrendCampaigns"
               :show-outliers="true" :outliers-count="outliersInfo.count" :outliers-button-text="outliersInfo.buttonText"
-              @toggle-outliers="toggleOutliers" />
+              :show-low-volume="true" :low-volume-count="lowVolumeInfo.count" :low-volume-button-text="lowVolumeInfo.buttonText"
+              @toggle-outliers="toggleOutliers" @toggle-low-volume="toggleLowVolume" />
           </div>
 
           <div class="charts-grid">

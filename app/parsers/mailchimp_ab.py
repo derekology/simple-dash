@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from app.parsers.id_generator import generate_unique_id
+from app.utils.id_generator import generate_unique_id
 
 def parse_kv(line: str):
     """Parse key-value pair from CSV format like '"Title:","COVERUP-29-04-2021"'"""

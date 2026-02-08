@@ -1,5 +1,5 @@
 import re
-from app.parsers.id_generator import generate_unique_id
+from app.utils.id_generator import generate_unique_id
 
 def parse_kv(line: str):
     parts = [p.strip().strip('"') for p in line.split(",") if p.strip()]

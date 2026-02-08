@@ -1,7 +1,7 @@
 import csv
 from io import StringIO
 from datetime import datetime
-from app.parsers.id_generator import generate_unique_id, normalize_datetime
+from app.utils.id_generator import generate_unique_id, normalize_datetime
 
 
 def parse_mailchimp_aggregated(text: str):

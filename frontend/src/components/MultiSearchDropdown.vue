@@ -13,11 +13,15 @@ const props = defineProps<{
   showOutliers?: boolean
   outliersCount?: number
   outliersButtonText?: string
+  showLowVolume?: boolean
+  lowVolumeCount?: number
+  lowVolumeButtonText?: string
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: number[]]
   'toggleOutliers': []
+  'toggleLowVolume': []
 }>()
 
 const isOpen = ref(false)
@@ -107,6 +111,11 @@ watch(isOpen, (open) => {
           class="action-button outliers-button" type="button"
           :title="`${outliersCount} outlier${outliersCount === 1 ? '' : 's'} detected based on deliveries (IQR method)`">
           {{ outliersButtonText }} ({{ outliersCount }})
+        </button>
+        <button v-if="showLowVolume && lowVolumeCount && lowVolumeCount > 0" @click.stop="emit('toggleLowVolume')"
+          class="action-button low-volume-button" type="button"
+          :title="`${lowVolumeCount} campaign${lowVolumeCount === 1 ? '' : 's'} with deliveries < 50% of median`">
+          {{ lowVolumeButtonText }} ({{ lowVolumeCount }})
         </button>
       </div>
       <div class="dropdown-options">
