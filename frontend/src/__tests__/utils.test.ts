@@ -30,7 +30,7 @@ describe('Utility Functions', () => {
   describe('calculateCTOR', () => {
     it('calculates click-to-open rate', () => {
       const calculateCTOR = (clicks: number | null, opens: number | null) => {
-        if (!clicks || !opens || opens === 0) return null
+        if (clicks === null || clicks === undefined || opens === null || opens === undefined || opens === 0) return null
         return (clicks / opens) * 100
       }
 
