@@ -206,7 +206,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production deployment instructio
 
 ```bash
 # 1. Clone and configure
-git clone <repo-url>
+git clone https://github.com/derekology/simple-dash
 cd simple-dash
 cp .env.example .env
 
