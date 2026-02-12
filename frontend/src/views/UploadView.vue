@@ -94,7 +94,7 @@ const handleUpload = async () => {
             formData.append('files', file)
         })
 
-        const response = await fetch('http://localhost:8000/parse', {
+        const response = await fetch('/parse', {
             method: 'POST',
             body: formData,
         })
