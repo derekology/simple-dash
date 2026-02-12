@@ -1,15 +1,29 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import MobileWarning from './components/MobileWarning.vue';
 
 const router = useRouter()
 const route = useRoute()
 const hasSavedCampaigns = ref(false)
 const previousRoute = ref<string>('/')
+const screenWidth = ref(window.innerWidth)
+
+const MOBILE_BREAKPOINT = 768
+const isMobile = computed(() => screenWidth.value < MOBILE_BREAKPOINT)
+
+function updateScreenWidth() {
+  screenWidth.value = window.innerWidth
+}
 
 onMounted(() => {
   const campaignsJson = sessionStorage.getItem('campaigns')
   hasSavedCampaigns.value = !!campaignsJson
+  window.addEventListener('resize', updateScreenWidth)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateScreenWidth)
 })
 
 watch(() => route.path, (newPath, oldPath) => {
@@ -28,28 +42,31 @@ function goBack() {
 </script>
 
 <template>
-  <header class="top-bar">
-    <h1 class="logo"><span class="logo-highlight">::</span>simple dash<span class="byline" @click="goToWebsite">by
-        derekw</span></h1>
-    <div class="nav">
-      <button v-if="$route.path === '/help'" class="nav-button" title="Back" @click="goBack">
-        {{ previousRoute === '/dashboard' ? 'back to dashboard' : 'back to upload' }}
-      </button>
-      <button v-else-if="$route.path === '/dashboard'" class="nav-button" title="Upload" @click="$router.push('/')">
-        back to upload
-      </button>
-      <button v-else-if="$route.path === '/' && hasSavedCampaigns" class="nav-button" title="Dashboard"
-        @click="$router.push('/dashboard')">
-        go to dashboard
-      </button>
-      <button v-if="$route.path !== '/help'" class="nav-button" title="Help / About" @click="$router.push('/help')">
-        help / about
-      </button>
-    </div>
-  </header>
+  <MobileWarning v-if="isMobile" />
+  <div v-else>
+    <header class="top-bar">
+      <h1 class="logo"><span class="logo-highlight">::</span>simple dash<span class="byline" @click="goToWebsite">by
+          derekw</span></h1>
+      <div class="nav">
+        <button v-if="$route.path === '/help'" class="nav-button" title="Back" @click="goBack">
+          {{ previousRoute === '/dashboard' ? 'back to dashboard' : 'back to upload' }}
+        </button>
+        <button v-else-if="$route.path === '/dashboard'" class="nav-button" title="Upload" @click="$router.push('/')">
+          back to upload
+        </button>
+        <button v-else-if="$route.path === '/' && hasSavedCampaigns" class="nav-button" title="Dashboard"
+          @click="$router.push('/dashboard')">
+          go to dashboard
+        </button>
+        <button v-if="$route.path !== '/help'" class="nav-button" title="Help / About" @click="$router.push('/help')">
+          help / about
+        </button>
+      </div>
+    </header>
 
-  <div class="content">
-    <RouterView />
+    <div class="content">
+      <RouterView />
+    </div>
   </div>
 </template>
 
