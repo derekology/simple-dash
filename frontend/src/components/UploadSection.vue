@@ -107,6 +107,9 @@ const totalSize = computed(() => {
                     Browse Files
                 </label>
                 <p class="limits-text">Max {{ MAX_FILES }} files, 10MB per file</p>
+                <p class="limits-text">If you upload duplicate campaigns, we’ll try to use the most recent version. For
+                    best
+                    results, remove duplicates before uploading.</p>
             </div>
         </div>
 
@@ -179,6 +182,7 @@ const totalSize = computed(() => {
     color: var(--color-text-lighter);
     margin: 0;
     font-style: italic;
+    max-width: 500px;
 }
 
 .file-input {

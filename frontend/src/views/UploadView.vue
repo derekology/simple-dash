@@ -166,6 +166,17 @@ const viewDashboard = () => {
                 Upload one or more MailChimp or MailerLite Classic reports (more platforms coming soon!)
             </p>
 
+            <UploadSection @files-selected="handleFilesSelected" @upload="handleUpload"
+                @validation-error="handleValidationError" />
+
+            <!-- <div class="info-banner">
+                <p class="info-text">
+                    If you upload files containing the same campaign, we'll
+                    attempt to use the most recent version. For best results, please filter duplicate campaigns before
+                    uploading.
+                </p>
+            </div> -->
+
             <div class="demo-banner">
                 <p class="demo-text">
                     Want to see what simple dash can do?
@@ -177,19 +188,8 @@ const viewDashboard = () => {
                         <polyline points="10 17 15 12 10 7" />
                         <line x1="15" y1="12" x2="3" y2="12" />
                     </svg>
-                    Try Demo with Sample Data
+                    Try it with sample data
                 </button>
-            </div>
-
-            <UploadSection @files-selected="handleFilesSelected" @upload="handleUpload"
-                @validation-error="handleValidationError" />
-
-            <div class="info-banner">
-                <p class="info-text">
-                    <strong>Duplicate Detection:</strong> If you upload files containing the same campaign, we'll
-                    attempt to use the most recent version. For best results, please filter duplicate campaigns before
-                    uploading.
-                </p>
             </div>
 
             <div v-if="validationError" class="status-message warning">
@@ -294,18 +294,19 @@ const viewDashboard = () => {
 }
 
 .demo-banner {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--color-bg-info-gradient);
     padding: 24px 32px;
     border-radius: 12px;
-    margin-bottom: 24px;
+    margin-top: 32px;
     text-align: center;
-    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    /* box-shadow: 0 4px 16px var(--color-border-dark); */
+    border: 1px solid var(--color-info);
 }
 
 .demo-text {
     margin: 0 0 16px 0;
-    color: #ffffff;
+    /* color: var(--color-text); */
+    color: #0d47a1;
     font-size: 18px;
     font-weight: 600;
 }
@@ -316,13 +317,14 @@ const viewDashboard = () => {
     gap: 12px;
     padding: 14px 28px;
     background-color: #ffffff;
-    color: #667eea;
+    /* color: #0d47a1; */
     border: none;
     border-radius: 8px;
     font-size: 16px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
+    color: var(--color-text-light);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
@@ -348,24 +350,12 @@ const viewDashboard = () => {
     box-shadow: 0 2px 6px rgba(33, 150, 243, 0.1);
 }
 
-.info-icon {
-    width: 22px;
-    height: 22px;
-    color: #1976d2;
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-
 .info-text {
     margin: 0;
     font-size: 14px;
     line-height: 1.5;
     color: #0d47a1;
-}
-
-.info-text strong {
-    font-weight: 700;
-    color: #0d47a1;
+    text-align: center;
 }
 
 .status-message {
