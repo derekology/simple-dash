@@ -1,8 +1,12 @@
 import os
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from app.utils.detector import detect_and_parse
 from app.models import ParseError, InvalidCampaignError, EmptyReportError, UnsupportedFormatError, InvalidFileError
 from typing import List, Dict
@@ -13,6 +17,21 @@ DEV = os.getenv("DEV", "False").lower() in ("true", "1", "yes")
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(10 * 1024 * 1024)))  # Default: 10MB
 MAX_FILES = int(os.getenv("MAX_FILES", "12"))  # Default: 12
 
+# Rate limiter that works with Cloudflare proxied requests
+def get_real_ip(request: Request) -> str:
+    """Get real IP from Cloudflare headers, fallback to remote address"""
+    forwarded_for = request.headers.get("CF-Connecting-IP")
+    if forwarded_for:
+        return forwarded_for
+    
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=get_real_ip)
+
 app = FastAPI(
     title="Simple Dash",
     description="Email campaign analytics tool",
@@ -22,11 +41,19 @@ app = FastAPI(
     openapi_url=None  # Disable /openapi.json
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+allowed_origins = ["*"] if DEV else [
+    "https://simpledash.wooprojects.com/",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -39,11 +66,29 @@ def get_file_modified_time(file: UploadFile) -> datetime:
 
 
 @app.post("/parse")
-async def parse_report(files: List[UploadFile] = File(...)):
+@limiter.limit("10/minute")
+async def parse_report(request: Request, files: List[UploadFile] = File(...)):
     if len(files) > MAX_FILES:
         raise HTTPException(
             status_code=400,
             detail=f"Too many files. Maximum {MAX_FILES} files allowed per upload."
+        )
+    
+    total_size = 0
+    file_contents = []
+    
+    for file in files:
+        contents = await file.read()
+        total_size += len(contents)
+        file_contents.append((file.filename, contents))
+        
+        await file.seek(0)
+    
+    max_total_size = MAX_FILE_SIZE * MAX_FILES
+    if total_size > max_total_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Total upload size exceeds maximum allowed ({max_total_size // (1024 * 1024)}MB)"
         )
     
     results = []
@@ -51,19 +96,17 @@ async def parse_report(files: List[UploadFile] = File(...)):
     campaigns_by_id: Dict[str, dict] = {}
     file_index = 0
     
-    for file in files:
-        if not file.filename.lower().endswith(".csv"):
+    for filename, contents in file_contents:
+        if not filename.lower().endswith(".csv"):
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": "Only CSV files supported"
             })
             continue
 
-        contents = await file.read()
-        
         if len(contents) > MAX_FILE_SIZE:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB"
             })
             continue
@@ -72,7 +115,7 @@ async def parse_report(files: List[UploadFile] = File(...)):
             text = contents.decode("utf-8", errors="ignore")
         except Exception as e:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": f"Failed to decode file: {str(e)}"
             })
             continue
@@ -82,7 +125,7 @@ async def parse_report(files: List[UploadFile] = File(...)):
             
             if not campaigns:
                 errors.append({
-                    "filename": file.filename,
+                    "filename": filename,
                     "error": "No campaigns found in file"
                 })
                 continue
@@ -100,7 +143,7 @@ async def parse_report(files: List[UploadFile] = File(...)):
                         campaigns_by_id[unique_id] = campaign_dict
                 else:
                     results.append({
-                        "filename": file.filename,
+                        "filename": filename,
                         "data": {"campaign": campaign_dict}
                     })
             
@@ -108,27 +151,27 @@ async def parse_report(files: List[UploadFile] = File(...)):
             
         except EmptyReportError as e:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": f"Empty report: {e.message}"
             })
         except UnsupportedFormatError as e:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": f"Unsupported format: {e.message}"
             })
         except InvalidCampaignError as e:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": f"Invalid campaign: {e.message}"
             })
         except ParseError as e:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": f"Parse error: {e.message}"
             })
         except Exception as e:
             errors.append({
-                "filename": file.filename,
+                "filename": filename,
                 "error": f"Failed to parse: {str(e)}"
             })
     
