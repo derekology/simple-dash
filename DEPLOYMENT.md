@@ -37,8 +37,8 @@ sudo apt install docker-compose-plugin
 
 ```bash
 # Clone repository
-git clone <repository-url>
-cd simple-dash
+git clone https://github.com/derekology/simpledash.git
+cd simpledash
 
 # Configure environment
 cp .env.example .env
@@ -55,16 +55,19 @@ docker compose logs
 #### Step 3: Set Up Reverse Proxy
 
 **Install nginx:**
+
 ```bash
 sudo apt install nginx
 ```
 
 **Create nginx configuration:**
+
 ```bash
-sudo nano /etc/nginx/sites-available/simple-dash
+sudo nano /etc/nginx/sites-available/simpledash
 ```
 
 **Add configuration:**
+
 ```nginx
 server {
     listen 80;
@@ -80,7 +83,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Timeouts for large file uploads
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
@@ -90,8 +93,9 @@ server {
 ```
 
 **Enable site:**
+
 ```bash
-sudo ln -s /etc/nginx/sites-available/simple-dash /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/simpledash /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```
@@ -99,16 +103,19 @@ sudo systemctl restart nginx
 #### Step 4: SSL/TLS Setup
 
 **Install Certbot:**
+
 ```bash
 sudo apt install certbot python3-certbot-nginx
 ```
 
 **Get certificate:**
+
 ```bash
 sudo certbot --nginx -d dash.example.com
 ```
 
 **Auto-renewal:**
+
 ```bash
 # Test renewal
 sudo certbot renew --dry-run
@@ -150,11 +157,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 # Build and push
-gcloud builds submit --tag gcr.io/PROJECT_ID/simple-dash
+gcloud builds submit --tag gcr.io/PROJECT_ID/simpledash
 
 # Deploy
-gcloud run deploy simple-dash \
-  --image gcr.io/PROJECT_ID/simple-dash \
+gcloud run deploy simpledash \
+  --image gcr.io/PROJECT_ID/simpledash \
   --platform managed \
   --allow-unauthenticated \
   --port 8000 \
@@ -220,7 +227,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
@@ -252,7 +259,7 @@ sudo ufw enable
 
 - Run as non-root user (already configured in Dockerfile)
 - Keep base images updated
-- Scan for vulnerabilities: `docker scout cves simple-dash`
+- Scan for vulnerabilities: `docker scout cves simpledash`
 
 ### 3. Application Security
 
@@ -265,10 +272,10 @@ sudo ufw enable
 ```nginx
 http {
     limit_req_zone $binary_remote_addr zone=upload:10m rate=5r/m;
-    
+
     server {
         # ... other config
-        
+
         location /parse {
             limit_req zone=upload burst=2;
             proxy_pass http://localhost:8000;
@@ -286,7 +293,7 @@ http {
 curl http://localhost:8000/health
 
 # Check container health
-docker inspect --format='{{.State.Health.Status}}' simple-dash
+docker inspect --format='{{.State.Health.Status}}' simpledash
 ```
 
 ### Logging
@@ -299,14 +306,14 @@ docker compose logs -f
 docker compose logs --tail=100
 
 # Follow specific service
-docker compose logs -f simple-dash
+docker compose logs -f simpledash
 ```
 
 ### System Monitoring
 
 ```bash
 # Container resource usage
-docker stats simple-dash
+docker stats simpledash
 
 # Nginx logs
 sudo tail -f /var/log/nginx/access.log
@@ -325,7 +332,7 @@ Simple Dash doesn't store data persistently, but you should backup:
 
 ```bash
 # Backup configuration
-tar -czf simple-dash-config-$(date +%Y%m%d).tar.gz .env docker-compose.yml
+tar -czf simpledash-config-$(date +%Y%m%d).tar.gz .env docker-compose.yml
 ```
 
 ## Scaling
@@ -337,29 +344,30 @@ Run multiple instances behind a load balancer:
 ```yaml
 # docker-compose.yml
 services:
-  simple-dash-1:
+  simpledash-1:
     build: .
-    container_name: simple-dash-1
+    container_name: simpledash-1
     ports:
       - "8001:8000"
 
-  simple-dash-2:
+  simpledash-2:
     build: .
-    container_name: simple-dash-2
+    container_name: simpledash-2
     ports:
       - "8002:8000"
 ```
 
 **nginx load balancer:**
+
 ```nginx
-upstream simple-dash {
+upstream simpledash {
     server localhost:8001;
     server localhost:8002;
 }
 
 server {
     location / {
-        proxy_pass http://simple-dash;
+        proxy_pass http://simpledash;
     }
 }
 ```
@@ -370,11 +378,11 @@ Adjust resource limits:
 
 ```yaml
 services:
-  simple-dash:
+  simpledash:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
 ```
 
@@ -416,7 +424,7 @@ npm outdated
 docker compose build
 
 # Start new container on different port
-docker compose up -d --scale simple-dash=2
+docker compose up -d --scale simpledash=2
 
 # Update nginx to use new instance
 # Update docker-compose to use new image
@@ -428,6 +436,7 @@ docker compose up -d --scale simple-dash=2
 ### Common Issues
 
 **1. Container won't start**
+
 ```bash
 docker compose logs
 # Check port conflicts
@@ -435,6 +444,7 @@ sudo netstat -tulpn | grep 8000
 ```
 
 **2. 502 Bad Gateway**
+
 ```bash
 # Check if container is running
 docker compose ps
@@ -444,18 +454,20 @@ sudo nginx -t
 ```
 
 **3. File upload fails**
+
 ```bash
 # Check nginx upload size
-grep client_max_body_size /etc/nginx/sites-available/simple-dash
+grep client_max_body_size /etc/nginx/sites-available/simpledash
 
 # Check container logs
 docker compose logs | grep -i error
 ```
 
 **4. High memory usage**
+
 ```bash
 # Check container stats
-docker stats simple-dash
+docker stats simpledash
 
 # Restart container
 docker compose restart
@@ -483,6 +495,7 @@ gzip_min_length 1000;
 ## Support
 
 For deployment issues:
+
 - Check logs: `docker compose logs`
 - Review nginx logs: `/var/log/nginx/error.log`
 - Test configuration: `nginx -t`

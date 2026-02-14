@@ -93,7 +93,7 @@ npm run build
 ### Project Structure
 
 ```
-simple-dash/
+simpledash/
 ├── app/                    # FastAPI backend
 │   ├── main.py            # API endpoints
 │   ├── models.py          # Data models
@@ -176,7 +176,7 @@ docker compose down
 docker compose restart
 
 # Shell access
-docker compose exec simple-dash sh
+docker compose exec simpledash sh
 ```
 
 ### Using Makefile
@@ -206,8 +206,8 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production deployment instructio
 
 ```bash
 # 1. Clone and configure
-git clone https://github.com/derekology/simple-dash
-cd simple-dash
+git clone https://github.com/derekology/simpledash
+cd simpledash
 cp .env.example .env
 
 # 2. Build and start

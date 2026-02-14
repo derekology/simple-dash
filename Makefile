@@ -30,7 +30,7 @@ clean: ## Stop and remove container, images, and volumes
 	docker compose down -v --rmi local
 
 shell: ## Open a shell in the running container
-	docker compose exec simple-dash sh
+	docker compose exec simpledash sh
 
 ps: ## Show container status
 	docker compose ps
@@ -43,4 +43,4 @@ rebuild: ## Rebuild and restart the container
 health: ## Check container health
 	docker compose ps
 	@echo ""
-	docker inspect --format='{{.State.Health.Status}}' simple-dash 2>/dev/null || echo "Health check not available"
+	docker inspect --format='{{.State.Health.Status}}' simpledash 2>/dev/null || echo "Health check not available"

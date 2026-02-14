@@ -1,9 +1,9 @@
 services:
-  simple-dash:
+  simpledash:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: simple-dash
+    container_name: simpledash
     restart: unless-stopped
     ports:
       - "${PORT:-8000}:${PORT:-8000}"

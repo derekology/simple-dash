@@ -33,7 +33,7 @@ watch(() => route.path, (newPath, oldPath) => {
 })
 
 function goToWebsite() {
-  window.open('https://derekw.co/?utm_medium=referral&utm_source=simple-dash', '_blank');
+  window.open('https://derekw.co/?utm_medium=referral&utm_source=simpledash', '_blank');
 }
 
 function goBack() {

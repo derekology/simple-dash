@@ -52,7 +52,7 @@ if errorlevel 1 (
     echo   View logs:    docker compose logs -f
     echo   Stop:         docker compose down
     echo   Restart:      docker compose restart
-    echo   Shell access: docker compose exec simple-dash sh
+    echo   Shell access: docker compose exec simpledash sh
     echo.
 )
 
